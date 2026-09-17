@@ -1,6 +1,6 @@
 ---
 name: laptop-link
-description: Work on another laptop through Laptop Link MCP tools. Use for reading or editing remote files, transferring files between laptops, running commands, collecting stdout and stderr, and recovering interrupted BLE operations.
+description: Work on another laptop through Laptop Link MCP tools. Use for reading or editing remote files, transferring files between laptops, running commands or shared interactive terminals, collecting stdout and stderr, and recovering interrupted BLE operations.
 ---
 
 # Work on a laptop over BLE
@@ -26,6 +26,12 @@ File-tool paths and command `cwd` refer to the **remote** Mac. Only `local_path`
 Save the returned `job_id` and poll with `link_exec_poll`. Carry `stdout.next_offset` and `stderr.next_offset` separately; offsets count bytes. Once state is `exited`, `timed_out`, or `cancelled`, continue draining until both next offsets equal their retained byte counts. Report exit status, timeout/cancellation, nonzero `discarded_bytes`, and stream errors when relevant.
 
 Every stream retains base64 `data`. `text` is a convenience only when the chunk is valid UTF-8; `text: null` may indicate binary bytes or a split multibyte character. Decode consecutive byte chunks incrementally when assembling text. Avoid rapidly polling an unchanged running job; space polls to suit expected command duration.
+
+## Visible interactive terminal
+
+Use `link_terminal_*` when the user wants to watch commands, share control, or maintain an interactive shell. `link_terminal_open` opens a real zsh PTY and a window on the receiving Mac; `cwd` and `env` set the initial state. Subsequent `cd` and environment changes persist. Existing `link_exec_*` jobs remain separate and do not appear in that window.
+
+Read [terminal sessions](references/terminal.md) before sending interactive input, handling a control handoff, or reconnecting to a session.
 
 ## Interrupted work
 

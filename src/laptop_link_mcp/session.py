@@ -7,7 +7,7 @@ import uuid
 from .request_store import Journal
 
 READERS = {"server.info", "fs.list", "fs.stat", "fs.read", "fs.hash", "fs.search",
-           "exec.poll", "exec.list", "upload.status"}
+           "exec.poll", "exec.list", "upload.status", "terminal.read", "terminal.list"}
 
 
 class RemoteFailure(Exception):
@@ -21,7 +21,7 @@ def display_result(response: dict) -> dict:
     value = result.get("result")
     if not isinstance(value, dict):
         return result
-    for stream in (value, value.get("stdout"), value.get("stderr")):
+    for stream in (value, value.get("stdout"), value.get("stderr"), value.get("output")):
         if isinstance(stream, dict) and isinstance(stream.get("data"), str):
             raw = base64.b64decode(stream["data"], validate=True)
             try:

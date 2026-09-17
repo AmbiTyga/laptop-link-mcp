@@ -97,6 +97,26 @@ SPECS = [
              obj({"upload_id": ID}, ["upload_id"])),
     ToolSpec("link_upload_abort", "upload.abort", "Discard an incomplete upload.",
              obj({"upload_id": ID}, ["upload_id"])),
+    ToolSpec("link_terminal_open", "terminal.open", "Open a persistent interactive zsh PTY and a visible window on the remote Mac. "
+             "No automatic command timeout; state survives BLE disconnect. Output is combined, with ANSI control sequences.",
+             obj({"cwd": PATH, "cols": integer(2, 500), "rows": integer(2, 200),
+                  "env": {"type": "object", "additionalProperties": string()}})),
+    ToolSpec("link_terminal_list", "terminal.list", "List terminal sessions, ownership, and control epochs for this server boot.",
+             obj({}), True),
+    ToolSpec("link_terminal_read", "terminal.read", "Read combined terminal bytes and current ownership. Follow output.next_offset; "
+             "output.truncated means older bytes expired. Shell prompts do not prove command success.",
+             obj({"session_id": ID, "offset": integer(), "max_bytes": integer(1, 32768)}, ["session_id"]), True),
+    ToolSpec("link_terminal_write", "terminal.write", "Send exact text or base64 bytes to a persistent terminal. "
+             "Include newline to submit a command; send byte 0x03 for Ctrl+C. Requires current agent ownership and control_epoch. "
+             "accepted_bytes means queued input, not command completion. Use link_retry after ambiguous failure; never resend under a new ID.",
+             obj({"session_id": ID, "control_epoch": integer(1), "text": string(), "data": DATA},
+                 ["session_id", "control_epoch"], oneOf=CONTENT_CHOICE)),
+    ToolSpec("link_terminal_resize", "terminal.resize", "Resize the PTY and visible terminal; requires current agent ownership/epoch.",
+             obj({"session_id": ID, "control_epoch": integer(1), "cols": integer(2, 500), "rows": integer(2, 200)},
+                 ["session_id", "control_epoch", "cols", "rows"])),
+    ToolSpec("link_terminal_close", "terminal.close", "End a terminal session and its job-control groups. "
+             "Requires current agent ownership/epoch. The local user can always end it from the window.",
+             obj({"session_id": ID, "control_epoch": integer(1)}, ["session_id", "control_epoch"])),
     ToolSpec("link_retry", None, "Recover a journaled mutation using its ORIGINAL ID, boot and parameters. "
              "Completed responses come from the journal; pending requests are resubmitted with server deduplication. "
              "A server_changed error requires inspecting the outcome, never a blind fresh mutation.",

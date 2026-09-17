@@ -4,7 +4,7 @@ The MCP adapter was tested on an Apple Silicon Mac with Python 3.12.7, Swift 6.3
 
 ## Automated checks
 
-`LINK_TEST_SERVER=/path/to/link-server ./scripts/check.sh` runs 30 checks, including four against the actual companion server through its local stdio diagnostic endpoint. Without `LINK_TEST_SERVER`, those four are explicitly skipped. The remaining checks do not need Bluetooth hardware or credentials.
+`LINK_TEST_SERVER=/path/to/link-server ./scripts/check.sh` runs 32 checks, including six against the actual companion server through its local stdio diagnostic endpoint. Without `LINK_TEST_SERVER`, those six are explicitly skipped. The remaining checks do not need Bluetooth hardware or credentials.
 
 Coverage:
 
@@ -41,8 +41,12 @@ No key, machine-specific workspace path, journal, or captured command log is che
 
 The companion server passes 17 standalone checks, including both authenticated formats, binary file/command routing, cross-format retry deduplication, malformed input limits, and replay/tamper rejection. A 65536-byte upload chunk occupies 116861 bytes with JSON versus 65747 with Protobuf, including encryption and framing (43.7% fewer bytes). This measures payload size, not radio throughput.
 
-The rebuilt native bridge completed a direct JSON request to the existing server. Subsequent live MCP attempts and a check with the unchanged JSON client both timed out. Physical Protobuf and automatic-upgrade validation remain pending; the earlier physical results above apply to the JSON baseline.
+The rebuilt native bridge completed a direct JSON request to the existing server. Subsequent live MCP attempts and a check with the unchanged JSON client both timed out. After the remote server was upgraded, authenticated automatic selection chose Protobuf. A 65536-byte binary file round-trip with SHA-256, exact stdout/stderr with exit 7, and enforced command timeout with retained output all passed over the physical BLE link. The temporary file was deleted. These physical results precede the interactive terminal feature.
 
 ## Remaining coverage
 
 Forced radio loss mid-mutation, sleep/wake recovery, denied Bluetooth permissions, long-duration sessions, sustained throughput, Intel hardware, and older macOS versions need additional hardware testing. The durable-retry logic has deterministic tests; those are not a claim that all radio failure modes have been exercised. Claude/Codex configuration examples follow their official stdio interfaces; their individual UIs have not been end-to-end tested here.
+
+## Interactive terminal checks
+
+The suite now includes two real-server terminal integration tests: persistent cwd/environment, input retry identity, output text/bytes, resize/list/close, stale epochs, and input validation. The companion server has 20 standalone checks including local takeover, Ctrl+C, rolling output, and shutdown of terminal background jobs. Interactive terminal operation over the physical BLE link remains pending a server upgrade.

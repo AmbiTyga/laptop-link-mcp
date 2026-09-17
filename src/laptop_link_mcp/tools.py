@@ -15,7 +15,8 @@ def create_server(remote) -> Server:
         "These tools operate on an enrolled remote Mac over BLE. Call link_status to identify its root. "
         "Remote paths are distinct from host paths. A failed/cancelled MCP call may have executed remotely. "
         "Recover ambiguous mutations with link_pending_requests/link_retry. "
-        "Poll commands to completion and drain both output streams."
+        "Poll commands to completion and drain both output streams. Use link_terminal_* for a visible persistent shell. "
+        "Respect local_control and stale_control: only the local UI can return input control to the agent."
     ))
 
     @server.list_tools()

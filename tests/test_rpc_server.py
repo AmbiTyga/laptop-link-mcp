@@ -101,3 +101,48 @@ async def test_empty_file_transfer(native, tmp_path):
     assert (root / "empty").read_bytes() == b""
     await dispatch(remote, "link_download", {"remote_path": "empty", "local_path": str(tmp_path / "received")})
     assert (tmp_path / "received").read_bytes() == b""
+
+
+async def read_terminal_until(remote, session, marker, timeout=8):
+    async with asyncio.timeout(timeout):
+        while True:
+            result = (await dispatch(remote, "link_terminal_read", {"session_id": session}))["result"]
+            if marker in base64.b64decode(result["output"]["data"]):
+                return result
+            await asyncio.sleep(0.05)
+
+
+async def test_persistent_terminal_tools_and_retry(native):
+    remote, root = native
+    (root / "sub").mkdir()
+    opened = await dispatch(remote, "link_terminal_open", {"env": {"HOME": str(root), "ZDOTDIR": str(root)}})
+    terminal = opened["result"]
+    identity = {"session_id": terminal["session_id"], "control_epoch": terminal["control_epoch"]}
+    assert terminal["owner"] == "agent"
+    first = await dispatch(remote, "link_terminal_write", {**identity, "text": "cd sub; export VISIBLE=yes; printf 'SET_%s\\n' OK\n"})
+    assert await dispatch(remote, "link_retry", {"request_id": first["id"]}) == first
+    await read_terminal_until(remote, identity["session_id"], b"SET_OK")
+    await dispatch(remote, "link_terminal_write", {**identity, "text": "printf 'PERSIST:%s:%s\\n' \"$PWD\" \"$VISIBLE\"\n"})
+    read = await read_terminal_until(remote, identity["session_id"], (str(root / "sub") + ":yes").encode())
+    assert "PERSIST:" in read["output"]["text"]
+    await dispatch(remote, "link_terminal_resize", {**identity, "cols": 101, "rows": 33})
+    listed = await dispatch(remote, "link_terminal_list", {})
+    assert listed["result"][0]["cols"] == 101
+    await dispatch(remote, "link_terminal_close", identity)
+    async with asyncio.timeout(5):
+        while (await dispatch(remote, "link_terminal_read", {"session_id": identity["session_id"]}))["result"]["state"] == "running":
+            await asyncio.sleep(0.05)
+
+
+async def test_terminal_validation_before_write(native):
+    remote, root = native
+    opened = await dispatch(remote, "link_terminal_open", {"env": {"HOME": str(root), "ZDOTDIR": str(root)}})
+    identity = {"session_id": opened["result"]["session_id"], "control_epoch": opened["result"]["control_epoch"]}
+    with pytest.raises(ValueError):
+        await dispatch(remote, "link_terminal_write", {"session_id": identity["session_id"], "text": "echo missing epoch\n"})
+    with pytest.raises(ValueError):
+        await dispatch(remote, "link_terminal_write", {**identity, "text": "x", "data": "eA=="})
+    with pytest.raises(RemoteFailure) as stale:
+        await dispatch(remote, "link_terminal_write", {**identity, "control_epoch": 999, "text": "touch forbidden\n"})
+    assert stale.value.detail["code"] == "stale_control"
+    assert not (root / "forbidden").exists()

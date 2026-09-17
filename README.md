@@ -89,6 +89,7 @@ The installer copies only the skill and its references, never keys or machine co
 
 | Area | Tools |
 | --- | --- |
+| Interactive terminal | `link_terminal_open`, `link_terminal_list`, `link_terminal_read`, `link_terminal_write`, `link_terminal_resize`, `link_terminal_close` |
 | Connection | `link_status` |
 | Read and inspect | `link_list_directory`, `link_stat`, `link_read_file`, `link_hash`, `link_search` |
 | Edit and manage | `link_write_file`, `link_append_file`, `link_patch_file`, `link_mkdir`, `link_copy`, `link_move`, `link_delete` |
@@ -132,3 +133,7 @@ LINK_TEST_SERVER=/absolute/path/laptop-link/dist/LaptopLinkServer.app/Contents/M
 ```
 
 The tests use temporary workspaces. Hardware checks are opt-in; see [validation](docs/VALIDATION.md). Native protocol sources are included in this repository, so a sibling `laptop-link` checkout is not required to build or run. See [architecture](docs/ARCHITECTURE.md) for source provenance and the transport boundary.
+
+## Shared interactive terminal
+
+Use the six `link_terminal_*` tools for a visible persistent shell with local Take Control / Return Control. Update the receiving server app too. See [terminal sessions](skills/laptop-link/references/terminal.md) for input, ownership, and retry semantics.

@@ -50,3 +50,5 @@ For Codex, long file transfers can need a higher `tool_timeout_sec` under the re
 Only build and use the software on machines you control or are authorized to operate. Command execution is visible in the tool definitions and runs as the remote server's user.
 
 Set `LINK_TRACE=1` in the MCP process environment to log native BLE connection stages to stderr while diagnosing discovery or authentication failures. Standard output remains reserved for protocol messages.
+
+For visible terminal sessions, rebuild/restart the receiving server and rebuild the MCP bridge. The host exposes 32 tools, including six `link_terminal_*` tools. If the server reports `unknown_method`, it is still running a build without terminal support.

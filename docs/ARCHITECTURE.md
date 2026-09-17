@@ -22,3 +22,7 @@ The [Laptop Link protocol reference](https://github.com/AmbiTyga/laptop-link/blo
 The native bridge is macOS-only. The skill and MCP interface are agent-independent; this does not make the Bluetooth runtime cross-platform. One connection handles one RPC at a time. Large transfers occupy the radio and may exceed host tool-call deadlines. The server's default 8192 mutation admission limit includes upload chunks and is per server run.
 
 The journal grows until managed by its owner. Keep it while pending outcomes need recovery. Keys, journal contents, and generated artifacts must never be committed. Native app bundles are ad-hoc signed for local use, not notarized distributions.
+
+## Interactive terminals
+
+MCP terminal tools use the same authenticated RPC and durable mutation journal. `terminal.write` sends raw bytes in Protobuf. `terminal.read/list` are read-only. All input/resize/close calls require the current control epoch; there is no MCP takeover operation. The receiving server owns the PTY and a SwiftTerm window. SwiftTerm is needed only by the server app and is not an MCP dependency. Both local and agent keystrokes enter the same serialized session queue; local handoffs invalidate old epochs.
