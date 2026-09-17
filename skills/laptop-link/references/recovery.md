@@ -10,7 +10,7 @@ After one explicit recovery attempt fails with another transport error, check co
 
 ## Remote restart
 
-`server_changed` means the old mutation belongs to a different server boot. A fresh `link_status` accepts the new boot for new operations, but cannot make old retries safe. Inspect files, hashes, and relevant side effects before deciding whether the user's intended action remains necessary. Previous jobs/uploads and server deduplication do not survive a restart. Never silently resubmit a command merely because its old job ID is missing.
+`server_changed` means the old mutation belongs to a different server boot. A fresh `link_status` accepts the new boot for new operations, but cannot make old retries safe. Inspect files, hashes, and relevant side effects before deciding whether the user's intended action remains necessary. Previous jobs/uploads/terminal sessions and server deduplication do not survive a restart. Never silently resubmit a command merely because its old job ID is missing.
 
 ## Uploads
 
@@ -27,3 +27,7 @@ Do not restart the entire convenience upload after an ambiguous commit without i
 Failed downloads leave the previous destination intact and remove the temporary file. Fix the reported condition and start a new download; it does not mutate remote state. An existing local destination requires explicit `overwrite: true`.
 
 Transport timeouts apply to BLE exchanges. Command execution timeouts run on the remote Mac even while disconnected. Query a known job with `link_exec_poll`, use `link_exec_cancel` when stopping it is intended, and retrieve remaining stdout/stderr. A cancel request means termination was requested, not that all effects were rolled back.
+
+## Interactive terminal reconnects
+
+Use `link_terminal_list` and `link_terminal_read` to find the intended session after reconnecting to the same boot. Keep its absolute output cursor; report `output.truncated` if bytes expired. Recover an ambiguous terminal write through its original `link_retry` identity before sending further input. A successful cached retry does not grant control: inspect the current owner and epoch. If the user has taken control, wait for Return Control without opening another session or using a background command to bypass the handoff. See [terminal sessions](terminal.md).
