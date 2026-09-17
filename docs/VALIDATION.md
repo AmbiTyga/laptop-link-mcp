@@ -1,0 +1,41 @@
+# Validation — 2026-09-17
+
+The MCP adapter was tested on an Apple Silicon Mac with Python 3.12.7, Swift 6.3.3, and the macOS 26.4 SDK. The native bridge targets macOS 13+. The remote Mac used the compatible protocol-v1 server and reported macOS 26.7, arm64, 24 GiB memory, and 10 CPU cores.
+
+## Automated checks
+
+`LINK_TEST_SERVER=/path/to/link-server ./scripts/check.sh` runs 24 checks, including four against the actual companion server through its local stdio diagnostic endpoint. Without `LINK_TEST_SERVER`, those four are explicitly skipped. The remaining checks do not need Bluetooth hardware or credentials.
+
+Coverage:
+
+- Official MCP initialization, tool discovery, structured results, error results, and request retry over a real stdio subprocess.
+- Persistent transport reuse across concurrent calls, request serialization, malformed-reply rejection, and session disposal after cancellation.
+- Lost response after execution, retry across a new MCP session using the same journal, original boot/UUID preservation, rejection after remote restart, and separate device histories.
+- UTF-8 encoding, binary output preservation, invalid tool arguments rejected before transport, pending identities retained after cancellation, and upload identity retained after invalid progress.
+- Actual server integration: 76800-byte binary upload/download with SHA-256, empty files, destination protection, failed download cleanup, hash-guarded edits, stdout/stderr with exit code 7, command timeout, and cancellation.
+
+The native bridge compiles and its app bundle passes ad-hoc code-signature verification. The portable skill installer and the skill metadata are checked separately.
+
+## Physical laptop test
+
+The real stdio MCP endpoint was launched by the official Python MCP client. It listed 26 tools, authenticated over BLE, and successfully ran:
+
+```sh
+/usr/bin/sw_vers
+/usr/bin/uname -m
+/usr/sbin/sysctl hw.model hw.memsize hw.ncpu
+```
+
+Command submission and output polling used the persistent native BLE bridge. The job exited with code 0, returned the expected OS/hardware text, and produced no stderr. A requested folder and greeting file were then created through MCP; chunked upload, read-back, and SHA-256 verification passed. The file was retained as requested.
+
+Repeat the read-only hardware check with:
+
+```sh
+.venv/bin/python scripts/inspect-remote.py --key /private/path/client.key
+```
+
+No key, machine-specific workspace path, journal, or captured command log is checked into the repository.
+
+## Remaining coverage
+
+Forced radio loss mid-mutation, sleep/wake recovery, denied Bluetooth permissions, long-duration sessions, sustained throughput, Intel hardware, and older macOS versions need additional hardware testing. The durable-retry logic has deterministic tests; those are not a claim that all radio failure modes have been exercised. Claude/Codex configuration examples follow their official stdio interfaces; their individual UIs have not been end-to-end tested here.
