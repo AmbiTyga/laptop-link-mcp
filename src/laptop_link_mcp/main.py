@@ -12,7 +12,7 @@ from mcp.server.stdio import stdio_server
 from .tools import create_server
 from .request_store import Journal
 from .session import Remote
-from .bridge import BridgeTransport
+from .wire_transport import WireTransport
 
 
 def configuration():
@@ -20,6 +20,8 @@ def configuration():
     parser.add_argument("--key", type=Path, required=True, help="Private 32-byte enrollment key file")
     parser.add_argument("--bridge", type=Path, required=True, help="Absolute path to built link-bridge executable")
     parser.add_argument("--name", help="Optional advertised BLE name filter; identity is authenticated by the key")
+    parser.add_argument("--wire", choices=["auto", "protobuf", "json"], default="auto",
+                        help="BLE format: auto prefers authenticated Protobuf support; json supports older servers")
     parser.add_argument("--timeout", type=int, default=120, help="Per-BLE-RPC timeout, not command execution timeout")
     parser.add_argument("--state-dir", type=Path,
                         default=Path.home() / "Library/Application Support/LaptopLinkMCP")
@@ -47,7 +49,7 @@ async def serve(args):
     if args.name:
         command += ["--name", args.name]
     journal = Journal(args.state_dir, args.scope)
-    transport = BridgeTransport(command, args.timeout)
+    transport = WireTransport(command, args.timeout, args.wire)
     remote = Remote(transport, journal)
     server = create_server(remote)
     heartbeat = asyncio.create_task(remote.keepalive())

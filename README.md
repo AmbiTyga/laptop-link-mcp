@@ -2,7 +2,7 @@
 
 Connect AI coding tools to another laptop over Bluetooth Low Energy. Laptop Link MCP exposes file operations, file transfers, and CLI commands through the Model Context Protocol (MCP), using [Laptop Link](https://github.com/AmbiTyga/laptop-link) on the remote laptop.
 
-The current implementation supports **two Macs**. A persistent Swift CoreBluetooth bridge carries authenticated, encrypted requests; the official Python MCP SDK exposes them to Claude Code, Codex, and other clients that can launch a local stdio MCP server. No IP network connection is needed between the laptops.
+The current implementation supports **two Macs**. A persistent Swift CoreBluetooth bridge carries authenticated, encrypted **Protobuf** requests; the official Python MCP SDK exposes them to Claude Code, Codex, and other clients that can launch a local stdio MCP server. No IP network connection is needed between the laptops. Older servers remain accessible through JSON compatibility mode.
 
 ```text
 Claude / Codex / MCP client
@@ -10,7 +10,7 @@ Claude / Codex / MCP client
        laptop-link-mcp (Python)
           │ private JSON-lines pipe
        BLE bridge (Swift)
-          │ authenticated, encrypted BLE
+          │ encrypted binary Protobuf over BLE
        Laptop Link (remote Mac)
           │
        files + command jobs
@@ -102,6 +102,10 @@ Start with `link_status` to check the remote workspace and limits. File paths re
 Commands return a job ID immediately. Poll for stdout, stderr, exit status, and timeout/cancellation state. Carry separate byte offsets for stdout and stderr and drain both streams after exit. Commands are noninteractive: no stdin, PTY, or password prompts.
 
 ## Connection and recovery
+
+The default `--wire auto` first queries server capabilities over authenticated legacy JSON, then reconnects with Protobuf when supported. Status responses include `transport.wire_format` (`protobuf` or `json`). Use `--wire protobuf` to require the new format, or `--wire json` for explicit legacy operation. Once Protobuf is selected, a failure never triggers a silent downgrade or mutation replay.
+
+Protobuf carries raw file/output bytes and ciphertext, removing both layers of base64 on BLE. A 65536-byte upload chunk measured 65747 encrypted/framed bytes, versus 116861 with JSON (43.7% less). Local MCP and bridge pipes remain JSON/base64. SwiftProtobuf 1.38.1 and generated sources are vendored for offline native builds; `Protocol/ble_wire.proto` defines the wire format.
 
 One native subprocess keeps its authenticated BLE session across requests, serializes RPCs, and sends a keepalive every 60 seconds. A transport failure closes that session. The next call can reconnect; **mutations are never automatically replayed**.
 

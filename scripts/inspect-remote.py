@@ -12,11 +12,14 @@ from mcp import ClientSession, StdioServerParameters
 from mcp.client.stdio import stdio_client
 
 
-async def inspect(key: str, state_dir: str | None):
+async def inspect(key: str, state_dir: str | None, name: str | None = None, wire: str = "auto"):
     root = Path(__file__).resolve().parent.parent
     args = ["--key", str(Path(key).expanduser().absolute())]
     if state_dir:
         args += ["--state-dir", str(Path(state_dir).expanduser().absolute())]
+    args += ["--wire", wire]
+    if name:
+        args += ["--name", name]
     parameters = StdioServerParameters(command=str(root / "scripts/run.sh"), args=args)
     async with stdio_client(parameters) as (reader, writer):
         async with ClientSession(reader, writer, read_timeout_seconds=timedelta(seconds=150)) as session:
@@ -63,5 +66,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--key", required=True)
     parser.add_argument("--state-dir")
+    parser.add_argument("--name")
+    parser.add_argument("--wire", choices=["auto", "protobuf", "json"], default="auto")
     options = parser.parse_args()
-    asyncio.run(inspect(options.key, options.state_dir))
+    asyncio.run(inspect(options.key, options.state_dir, options.name, options.wire))

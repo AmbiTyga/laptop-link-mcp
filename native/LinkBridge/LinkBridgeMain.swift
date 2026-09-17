@@ -18,7 +18,10 @@ struct LinkBridgeMain {
             guard key.count == 32 else { throw RPCError("arguments", "Key must contain 32 bytes") }
             let timeout = option("--timeout").flatMap(Int.init) ?? 120
             guard (1...3600).contains(timeout) else { throw RPCError("arguments", "Invalid timeout") }
-            let client = try LinkSession(key: key, name: option("--name"), timeout: timeout)
+            guard let format = WireFormat(rawValue: option("--wire") ?? "protobuf") else {
+                throw RPCError("arguments", "--wire must be protobuf or json")
+            }
+            let client = try LinkSession(key: key, name: option("--name"), timeout: timeout, format: format)
             DispatchQueue.global().async {
                 do {
                     var buffer = Data()

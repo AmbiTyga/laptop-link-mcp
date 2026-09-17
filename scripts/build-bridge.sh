@@ -8,13 +8,18 @@ mkdir -p "$link_output/modules" "$link_output/module-cache"
 link_flags=(-swift-version 6 -parse-as-library -O -sdk "$link_sdk"
     -target "$(uname -m)-apple-macosx13.0" -module-cache-path "$link_output/module-cache"
     -I "$link_output/modules")
+"$link_swiftc" "${link_flags[@]}" -package-name SwiftProtobuf -module-name SwiftProtobuf -emit-module \
+    -emit-module-path "$link_output/modules/SwiftProtobuf.swiftmodule" \
+    -emit-library -static Vendor/SwiftProtobuf/Sources/*.swift -o "$link_output/libSwiftProtobuf.a"
 "$link_swiftc" "${link_flags[@]}" -module-name LinkProtocol -emit-module \
     -emit-module-path "$link_output/modules/LinkProtocol.swiftmodule" \
     -emit-library -static native/LinkProtocol/*.swift -o "$link_output/libLinkProtocol.a"
 link_app="$PWD/dist/LaptopLinkBridge.app/Contents"
 mkdir -p "$link_app/MacOS"
 "$link_swiftc" "${link_flags[@]}" -module-name LinkBridge native/LinkBridge/*.swift \
-    "$link_output/libLinkProtocol.a" -o "$link_app/MacOS/link-bridge"
+    "$link_output/libLinkProtocol.a" "$link_output/libSwiftProtobuf.a" -o "$link_app/MacOS/link-bridge"
+mkdir -p "$link_app/Resources/SwiftProtobuf"
+cp Vendor/SwiftProtobuf/PrivacyInfo.xcprivacy Vendor/SwiftProtobuf/LICENSE.txt "$link_app/Resources/SwiftProtobuf/"
 cat > "$link_app/Info.plist" <<'PLIST'
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">

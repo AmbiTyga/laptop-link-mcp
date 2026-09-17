@@ -7,6 +7,7 @@ import LinkProtocol
 public final class LinkSession: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate, @unchecked Sendable {
     private let queue = DispatchQueue(label: "ble.central")
     private let handshake: ClientHandshake
+    private let format: WireFormat
     private let name: String?
     private var request: RPCRequest?
     private var completion: (@Sendable (RPCResponse) -> Void)?
@@ -19,14 +20,16 @@ public final class LinkSession: NSObject, CBCentralManagerDelegate, CBPeripheral
     private var writing = false, done = false
     private var stage = "challenge"
 
-    public init(key: Data, name: String?, timeout: Int) throws {
-        handshake = try ClientHandshake(key: key); self.name = name; self.timeout = timeout
+    public init(key: Data, name: String?, timeout: Int, format: WireFormat = .protobuf) throws {
+        self.format = format
+        handshake = try ClientHandshake(key: key, format: format); self.name = name; self.timeout = timeout
         super.init()
         manager = CBCentralManager(delegate: self, queue: queue)
     }
 
     public func perform(_ request: RPCRequest, completion: @escaping @Sendable (RPCResponse) -> Void) {
         queue.async {
+            self.trace("perform \(request.method) stage=\(self.stage)")
             guard self.request == nil else { LinkBridgeMain.fail(RPCError("busy", "Request already active")) }
             guard request.version == 1, request.method == "server.info" || request.bootID != nil else {
                 LinkBridgeMain.fail(RPCError("protocol", "Version 1 and explicit bootID required"))
@@ -41,12 +44,14 @@ public final class LinkSession: NSObject, CBCentralManagerDelegate, CBPeripheral
     }
 
     private func submit() throws {
+        trace("submit stage=\(stage) request=\(request != nil)")
         guard stage == "idle", let request, let channel = handshake.channel else { return }
         stage = "result"
-        try send(channel.seal(WireJSON.encode(request)))
+        try send(channel.seal(format.encodeRequest(request)))
     }
 
     public func centralManagerDidUpdateState(_ central: CBCentralManager) {
+        trace("Bluetooth state=\(central.state.rawValue)")
         guard central.state == .poweredOn else {
             if central.state == .unauthorized || central.state == .unsupported || central.state == .poweredOff {
                 finish(.failure(RPCError("bluetooth", "Bluetooth unavailable: \(central.state.rawValue)")))
@@ -58,6 +63,7 @@ public final class LinkSession: NSObject, CBCentralManagerDelegate, CBPeripheral
 
     public func centralManager(_ central: CBCentralManager, didDiscover peripheral: CBPeripheral,
                                advertisementData: [String: Any], rssi RSSI: NSNumber) {
+        trace("discovered \(peripheral.name ?? "unnamed")")
         guard self.peripheral == nil else { return }
         let advertised = advertisementData[CBAdvertisementDataLocalNameKey] as? String ?? peripheral.name
         guard name == nil || advertised == name else { return }
@@ -66,6 +72,7 @@ public final class LinkSession: NSObject, CBCentralManagerDelegate, CBPeripheral
     }
 
     public func centralManager(_ central: CBCentralManager, didConnect peripheral: CBPeripheral) {
+        trace("connected")
         peripheral.discoverServices([LinkServiceIDs.service])
     }
 
@@ -78,6 +85,7 @@ public final class LinkSession: NSObject, CBCentralManagerDelegate, CBPeripheral
     }
 
     public func peripheral(_ peripheral: CBPeripheral, didDiscoverServices error: Error?) {
+        trace("services")
         if let error { finish(.failure(error)); return }
         guard let service = peripheral.services?.first(where: { $0.uuid == LinkServiceIDs.service }) else {
             finish(.failure(RPCError("protocol", "Missing service"))); return
@@ -86,6 +94,7 @@ public final class LinkSession: NSObject, CBCentralManagerDelegate, CBPeripheral
     }
 
     public func peripheral(_ peripheral: CBPeripheral, didDiscoverCharacteristicsFor service: CBService, error: Error?) {
+        trace("characteristics")
         if let error { finish(.failure(error)); return }
         tx = service.characteristics?.first { $0.uuid == LinkServiceIDs.request }
         rx = service.characteristics?.first { $0.uuid == LinkServiceIDs.response }
@@ -94,6 +103,7 @@ public final class LinkSession: NSObject, CBCentralManagerDelegate, CBPeripheral
     }
 
     public func peripheral(_ peripheral: CBPeripheral, didUpdateNotificationStateFor characteristic: CBCharacteristic, error: Error?) {
+        trace("notifications=\(characteristic.isNotifying)")
         if let error { finish(.failure(error)); return }
         guard characteristic.isNotifying else { finish(.failure(RPCError("protocol", "Notifications not enabled"))); return }
         do { try send(handshake.hello) } catch { finish(.failure(error)) }
@@ -103,11 +113,12 @@ public final class LinkSession: NSObject, CBCentralManagerDelegate, CBPeripheral
         if let error { finish(.failure(error)); return }
         guard characteristic.uuid == LinkServiceIDs.response, let value = characteristic.value else { return }
         do {
-            for data in try decoder.append(value) { try receive(WireJSON.decode(Envelope.self, from: data)) }
+            for data in try decoder.append(value) { try receive(format.decodeEnvelope(data)) }
         } catch { finish(.failure(error)) }
     }
 
     private func receive(_ envelope: Envelope) throws {
+        trace("receive \(envelope.type) stage=\(stage)")
         if stage == "challenge" {
             let auth = try handshake.authenticate(envelope)
             stage = "ready"; try send(auth); return
@@ -118,18 +129,19 @@ public final class LinkSession: NSObject, CBCentralManagerDelegate, CBPeripheral
             guard data == Data("ready".utf8) else { throw RPCError("auth", "Invalid authentication acknowledgement") }
             stage = "idle"; try submit(); return
         }
-        let response = try WireJSON.decode(RPCResponse.self, from: data)
+        let response = try format.decodeResponse(data)
         guard stage == "result", response.version == 1, response.id == request?.id else {
             throw RPCError("protocol", "Unexpected response")
         }
         let callback = completion
         request = nil; completion = nil; stage = "idle"
+        trace("complete callback=\(callback != nil)")
         callback?(response)
     }
 
     private func send(_ envelope: Envelope) throws {
         guard outgoing.isEmpty else { throw RPCError("protocol", "Previous write is unfinished") }
-        outgoing = try FrameDecoder.encode(WireJSON.encode(envelope)); pump()
+        outgoing = try FrameDecoder.encode(format.encodeEnvelope(envelope)); pump()
     }
 
     private func pump() {
@@ -142,7 +154,14 @@ public final class LinkSession: NSObject, CBCentralManagerDelegate, CBPeripheral
 
     public func peripheral(_ peripheral: CBPeripheral, didWriteValueFor characteristic: CBCharacteristic, error: Error?) {
         if let error { finish(.failure(error)); return }
+        trace("write acknowledged")
         writing = false; pump()
+    }
+
+    private func trace(_ message: String) {
+        if ProcessInfo.processInfo.environment["LINK_TRACE"] == "1" {
+            FileHandle.standardError.write(Data("BLE: \(message)\n".utf8))
+        }
     }
 
     private func finish(_ result: Result<RPCResponse, Error>) {

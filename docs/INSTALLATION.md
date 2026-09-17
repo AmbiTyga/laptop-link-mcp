@@ -26,6 +26,7 @@ References: [Agent Skills specification](https://agentskills.io/specification), 
 | --- | --- |
 | `--key PATH` | Required private 32-byte enrollment key file |
 | `--name NAME` | Optional exact advertised-name filter |
+| `--wire auto\|protobuf\|json` | Default auto: authenticated capability selection; protobuf requires a v2-capable server |
 | `--timeout SECONDS` | Per-RPC BLE timeout, 1–3600; default 120 |
 | `--state-dir PATH` | Private directory for durable mutation records |
 
@@ -42,7 +43,10 @@ For Codex, long file transfers can need a higher `tool_timeout_sec` under the re
 - **Bluetooth unavailable:** enable Bluetooth and check macOS Privacy & Security → Bluetooth for the launching application. The remote server must be advertising, both Macs awake, and the key must match.
 - **`server_changed`:** the remote server restarted. Inspect outcome, then call `link_status` to accept the new boot for new work. Old retries stay bound to their original boot.
 - **Transport timeout:** a submitted command or write may have executed. Use the returned request ID with `link_retry`; if the host cancelled without a result, use `link_pending_requests`.
+- **Status reports JSON:** the selected server did not advertise Protobuf support. Build and run the updated Laptop Link server, then restart the MCP process to re-negotiate. `--wire protobuf` never silently falls back to JSON. The local MCP interface continues using JSON in either mode.
 - **Permission error for state or key:** the key must be a regular file owned by your account, mode 600; the state directory must be owned by you, mode 700. The journal may contain sensitive file contents.
 - **Large command output:** poll both byte streams until fully drained, and report `discarded_bytes` or stream errors. `text: null` means the chunk is binary or splits a UTF-8 character; decode consecutive base64 chunks incrementally.
 
 Only build and use the software on machines you control or are authorized to operate. Command execution is visible in the tool definitions and runs as the remote server's user.
+
+Set `LINK_TRACE=1` in the MCP process environment to log native BLE connection stages to stderr while diagnosing discovery or authentication failures. Standard output remains reserved for protocol messages.

@@ -36,6 +36,10 @@ class BridgeTransport:
                             or (("result" in response) == ("error" in response))):
                         raise ConnectionError("Invalid BLE response envelope")
                     return response
+            except TimeoutError as exc:
+                await self.close()
+                raise TimeoutError(f"BLE exchange exceeded {self.timeout + 5:g}s; the peer may be unavailable. "
+                                   "A submitted mutation may have executed; retain its retry identity.") from exc
             except BaseException:
                 # Never leave a cancelled read or a late response on a reusable stream.
                 await self.close()

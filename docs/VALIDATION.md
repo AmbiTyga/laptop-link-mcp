@@ -4,11 +4,12 @@ The MCP adapter was tested on an Apple Silicon Mac with Python 3.12.7, Swift 6.3
 
 ## Automated checks
 
-`LINK_TEST_SERVER=/path/to/link-server ./scripts/check.sh` runs 24 checks, including four against the actual companion server through its local stdio diagnostic endpoint. Without `LINK_TEST_SERVER`, those four are explicitly skipped. The remaining checks do not need Bluetooth hardware or credentials.
+`LINK_TEST_SERVER=/path/to/link-server ./scripts/check.sh` runs 30 checks, including four against the actual companion server through its local stdio diagnostic endpoint. Without `LINK_TEST_SERVER`, those four are explicitly skipped. The remaining checks do not need Bluetooth hardware or credentials.
 
 Coverage:
 
 - Official MCP initialization, tool discovery, structured results, error results, and request retry over a real stdio subprocess.
+- Wire selection: legacy JSON compatibility, authenticated capability upgrade, original retry identity preservation, explicit modes, and no silent downgrade or mutation replay after a Protobuf failure.
 - Persistent transport reuse across concurrent calls, request serialization, malformed-reply rejection, and session disposal after cancellation.
 - Lost response after execution, retry across a new MCP session using the same journal, original boot/UUID preservation, rejection after remote restart, and separate device histories.
 - UTF-8 encoding, binary output preservation, invalid tool arguments rejected before transport, pending identities retained after cancellation, and upload identity retained after invalid progress.
@@ -16,7 +17,7 @@ Coverage:
 
 The native bridge compiles and its app bundle passes ad-hoc code-signature verification. The portable skill installer and the skill metadata are checked separately.
 
-## Physical laptop test
+## Earlier physical laptop test (JSON v1)
 
 The real stdio MCP endpoint was launched by the official Python MCP client. It listed 26 tools, authenticated over BLE, and successfully ran:
 
@@ -35,6 +36,12 @@ Repeat the read-only hardware check with:
 ```
 
 No key, machine-specific workspace path, journal, or captured command log is checked into the repository.
+
+## Protobuf migration validation
+
+The companion server passes 17 standalone checks, including both authenticated formats, binary file/command routing, cross-format retry deduplication, malformed input limits, and replay/tamper rejection. A 65536-byte upload chunk occupies 116861 bytes with JSON versus 65747 with Protobuf, including encryption and framing (43.7% fewer bytes). This measures payload size, not radio throughput.
+
+The rebuilt native bridge completed a direct JSON request to the existing server. Subsequent live MCP attempts and a check with the unchanged JSON client both timed out. Physical Protobuf and automatic-upgrade validation remain pending; the earlier physical results above apply to the JSON baseline.
 
 ## Remaining coverage
 
