@@ -9,6 +9,7 @@ from pathlib import Path
 
 from mcp.server.stdio import stdio_server
 
+from .enrollment import default_key
 from .tools import create_server
 from .request_store import Journal
 from .session import Remote
@@ -17,7 +18,7 @@ from .wire_transport import WireTransport
 
 def configuration():
     parser = argparse.ArgumentParser(description="MCP tools for the remote Laptop Link (stdio transport)")
-    parser.add_argument("--key", type=Path, required=True, help="Private 32-byte enrollment key file")
+    parser.add_argument("--key", type=Path, help="Private 32-byte enrollment key file (defaults to the key saved by setup)")
     parser.add_argument("--bridge", type=Path, required=True, help="Absolute path to built link-bridge executable")
     parser.add_argument("--name", help="Optional advertised BLE name filter; identity is authenticated by the key")
     parser.add_argument("--wire", choices=["auto", "protobuf", "json"], default="auto",
@@ -29,6 +30,11 @@ def configuration():
     if not 1 <= args.timeout <= 3600:
         parser.error("--timeout must be between 1 and 3600 seconds")
     args.bridge = args.bridge.expanduser().resolve()
+    if args.key is None:
+        try:
+            args.key = default_key()
+        except ValueError as error:
+            parser.error(str(error))
     args.key = args.key.expanduser().absolute()
     args.state_dir = args.state_dir.expanduser().absolute()
     if not args.bridge.is_file() or not os.access(args.bridge, os.X_OK):

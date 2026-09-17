@@ -50,3 +50,9 @@ Forced radio loss mid-mutation, sleep/wake recovery, denied Bluetooth permission
 ## Interactive terminal checks
 
 The suite now includes two real-server terminal integration tests: persistent cwd/environment, input retry identity, output text/bytes, resize/list/close, stale epochs, and input validation. The companion server has 20 standalone checks including local takeover, Ctrl+C, rolling output, and shutdown of terminal background jobs. Interactive terminal operation over the physical BLE link remains pending a server upgrade.
+
+## Guided enrollment setup
+
+The setup additions were checked locally with 62 MCP tests (including the six native-server integration checks) and five companion setup-helper tests. HTTP checks used loopback servers and temporary keys. Coverage includes filename/path-expression rejection, IP/port validation, bad HTTP responses and redirects, wrong file sizes, private permissions, preservation of existing keys, rollback if settings cannot be saved, and saved-key selection with explicit `--key` overrides.
+
+An end-to-end local handoff used the packaged server initializer, the new server setup entry point and five-port prompt, actual curl download through the client enrollment prompts, automatic MCP key selection, repeated setup preserving the original key, and Ctrl+C cleanup of the repository copy. The source archive was checked to include setup helpers and exclude enrollment keys and Python caches. This setup handoff has not yet been exercised across two physical laptops or their firewall prompts.

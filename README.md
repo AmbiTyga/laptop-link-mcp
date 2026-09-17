@@ -26,29 +26,34 @@ On the controlling Mac, install Python 3.11+, [uv](https://docs.astral.sh/uv/), 
 git clone https://github.com/AmbiTyga/laptop-link-mcp.git
 cd laptop-link-mcp
 ./scripts/setup.sh
-chmod 600 /private/path/client.key
 ```
 
-`setup.sh` installs locked Python dependencies and builds `dist/LaptopLinkBridge.app`. Set `LINK_SWIFTC` or `LINK_SDK` to select a compiler or SDK explicitly. The Swift build uses `swiftc` directly, without Swift Package Manager or downloaded Swift packages. Python packages are downloaded during setup; subsequent launches need no network access.
+`setup.sh` installs locked Python dependencies, builds `dist/LaptopLinkBridge.app`, then prompts for the receiving Mac's **IP**, **HTTP port**, and a **key name**. Start `./scripts/setup.sh` in Laptop Link on that Mac first, or serve its `client.key` from an existing HTTP server. The client uses curl to download `http://IP:PORT/client.key` and requires a successful HTTP 200 response with exactly 32 bytes.
+
+The key is saved as `~/.config/laptop-link/NAME.key` with mode 600, and selected automatically for subsequent launches through `~/.config/laptop-link/config.json`. Names must contain 1–64 ASCII letters, digits, hyphens or underscores, starting with a letter or digit; omit `.key`. Existing keys are never overwritten. Setup confirms completion only after the download and settings are saved. This checks the key file format; actual BLE authentication happens on first connection.
+
+Use a trusted LAN for this unencrypted HTTP handoff, and stop the HTTP server after downloading. The BLE connection still uses authenticated encryption. For an existing key or automated build, use `./scripts/setup.sh --build-only` and pass `--key /private/path/client.key` when launching. To download a key without rebuilding, use `./scripts/setup.sh --key-only`.
+
+Set `LINK_SWIFTC` or `LINK_SDK` to select a compiler or SDK explicitly. The Swift build uses `swiftc` directly, without Swift Package Manager or downloaded Swift packages. Python packages are downloaded during setup; subsequent launches need no network access.
 
 Both laptops must be awake, within BLE range, and have Bluetooth enabled. Allow Bluetooth access for the bridge or the application launching it when macOS prompts. Keep the bridge inside its app bundle so macOS can read its Bluetooth usage description.
 
 ## Connect your agent
 
-Use absolute paths. The MCP server starts lazily: connecting the agent does not contact the remote laptop until a tool is called.
+Use absolute paths. These examples use the key saved by setup; add `--key /private/path/client.key` to override it. The MCP server starts lazily: connecting the agent does not contact the remote laptop until a tool is called.
 
 **Claude Code**
 
 ```sh
 claude mcp add --transport stdio --scope user laptop-link -- \
-  /absolute/path/laptop-link-mcp/scripts/run.sh --key /private/path/client.key
+  /absolute/path/laptop-link-mcp/scripts/run.sh
 ```
 
 **Codex**
 
 ```sh
 codex mcp add laptop-link -- \
-  /absolute/path/laptop-link-mcp/scripts/run.sh --key /private/path/client.key
+  /absolute/path/laptop-link-mcp/scripts/run.sh
 ```
 
 **Other local MCP clients**, including Claude Desktop, can use this stdio entry in their MCP configuration:
@@ -58,7 +63,7 @@ codex mcp add laptop-link -- \
   "mcpServers": {
     "laptop-link": {
       "command": "/absolute/path/laptop-link-mcp/scripts/run.sh",
-      "args": ["--key", "/private/path/client.key", "--timeout", "120"]
+      "args": ["--timeout", "120"]
     }
   }
 }

@@ -18,13 +18,38 @@ For hosts without a skill loader, include `SKILL.md` and its referenced recovery
 
 References: [Agent Skills specification](https://agentskills.io/specification), [Claude skills](https://code.claude.com/docs/en/skills), [Codex skills](https://developers.openai.com/codex/skills).
 
+## Guided key download
+
+Run `./scripts/setup.sh` to install dependencies, build the bridge, and download the receiving Mac's enrollment key. It prompts separately for:
+
+1. Server IP (a literal IP address, without `http://` or a port).
+2. Server port (1–65535).
+3. Key name without `.key` (1–64 ASCII letters, digits, hyphens, underscores; first character a letter or digit).
+
+Start the receiving Laptop Link repository's `./scripts/setup.sh` first. It creates or reuses the server key, offers five available HTTP ports, and prints the URL. An existing HTTP server can also be used if it serves the correct raw key at `/client.key`. HTTP is unencrypted; use a trusted LAN and stop sharing immediately after enrollment.
+
+The downloader invokes curl with separate arguments, never a shell expression. It rejects malformed IPs/ports, path traversal, shell expressions, redirects, HTTP errors, and files not exactly 32 bytes. Downloads have a 5-second connect timeout and 30-second overall timeout. Partial downloads are removed. An existing destination (including a symlink) is never overwritten; choose a different key name.
+
+The result is saved privately in `~/.config/laptop-link/NAME.key` (mode 600, directory mode 700). `~/.config/laptop-link/config.json` remembers the absolute key path. After success, `scripts/run.sh` needs no `--key`; an explicit `--key` still overrides the saved selection. Changing the default changes which enrollment key launchers without `--key` use, so use explicit paths when configuring multiple remote Macs.
+
+Setup completion confirms dependency/build success and a saved 32-byte key. It does not claim a successful BLE connection; use `link_status` after registering the MCP server to authenticate. Install the portable skill separately as described above.
+
+```sh
+# Already built: just enroll another key and make it the default.
+./scripts/setup.sh --key-only
+
+# Existing manually transferred key, or noninteractive CI: build without enrollment prompts.
+./scripts/setup.sh --build-only
+./scripts/run.sh --key /private/path/client.key
+```
+
 ## MCP launch options
 
 `scripts/run.sh` resolves its own repository location and uses the prepared `.venv`. It does not download packages at startup and works regardless of the agent's working directory.
 
 | Option | Meaning |
 | --- | --- |
-| `--key PATH` | Required private 32-byte enrollment key file |
+| `--key PATH` | Private 32-byte enrollment key file; overrides the default saved by setup |
 | `--name NAME` | Optional exact advertised-name filter |
 | `--wire auto\|protobuf\|json` | Default auto: authenticated capability selection; protobuf requires a v2-capable server |
 | `--timeout SECONDS` | Per-RPC BLE timeout, 1–3600; default 120 |
@@ -38,7 +63,7 @@ For Codex, long file transfers can need a higher `tool_timeout_sec` under the re
 
 ## Troubleshooting
 
-- **Missing executable or Python package:** run `./scripts/setup.sh` again. Keep the whole repository and `.venv` in place; rebuild after moving it because virtualenv launchers contain absolute paths.
+- **Missing executable or Python package:** run `./scripts/setup.sh --build-only` again. Keep the whole repository and `.venv` in place; rebuild after moving it because virtualenv launchers contain absolute paths.
 - **Compiler/SDK mismatch:** set `LINK_SWIFTC=/path/to/swiftc` and `LINK_SDK=/path/to/compatible/MacOSX.sdk`, then rebuild. The native build bypasses SwiftPM.
 - **Bluetooth unavailable:** enable Bluetooth and check macOS Privacy & Security → Bluetooth for the launching application. The remote server must be advertising, both Macs awake, and the key must match.
 - **`server_changed`:** the remote server restarted. Inspect outcome, then call `link_status` to accept the new boot for new work. Old retries stay bound to their original boot.
